@@ -1,0 +1,6 @@
+path,type,content
+/,dir,
+/home,dir,
+/home/readme.txt,file,Привет из простой VFS
+/bin,dir,
+/bin/test.txt,file,Тестовый файл

@@ -1,0 +1,12 @@
+path,type,content
+/,dir,
+/home,dir,
+/home/user,dir,
+/home/user/docs,dir,
+/home/user/docs/file1.txt,file,Файл первого уровня
+/home/user/docs/reports,dir,
+/home/user/docs/reports/report.txt,file,Отчёт на третьем уровне
+/var,dir,
+/var/log,dir,
+/var/log/app,dir,
+/var/log/app/error.log,file,Ошибка на глубоком уровне

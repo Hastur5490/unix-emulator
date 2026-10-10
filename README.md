@@ -18,7 +18,6 @@
 
 ### Запуск
 
-
 run.bat
 
 ## Этап 2. Конфигурация
@@ -42,3 +41,41 @@ run.bat
 
 python src/main.py
 python src/main.py --vfs C:\path\to\vfs --script test_script.txt
+
+## Этап 3. VFS
+
+Подключена виртуальная файловая система.
+
+### Возможности Этапа 3
+
+- VFS полностью хранится в памяти
+- Источник VFS — CSV-файл
+- Поддержка base64 для содержимого файлов
+- Если путь к VFS не указан — создаётся VFS по умолчанию
+- Обработка ошибок загрузки (файл не найден, неверный формат)
+
+### Формат CSV
+
+csv
+path,type,content
+/,dir,
+/home,dir,
+/home/user/readme.txt,file,Текст файла
+
+Тестовые vfs
+Файл,Описание
+vfs/minimal.csv,Минимальная VFS
+vfs/simple.csv,Несколько файлов и папок
+vfs/deep.csv,Вложенность 3+ уровней
+
+Запуск
+python src/main.py
+python src/main.py --vfs vfs/deep.csv
+python src/main.py --vfs vfs/deep.csv --script test_all.txt
+
+Тестовые скрипты
+tests\test_no_args.bat
+tests\test_vfs_minimal.bat
+tests\test_vfs_simple.bat
+tests\test_vfs_deep.bat
+tests\test_full_stage3.bat

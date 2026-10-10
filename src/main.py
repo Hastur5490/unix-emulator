@@ -4,6 +4,53 @@ import getpass
 import os
 import argparse
 import socket
+import csv
+import base64
+from io import StringIO
+
+
+def load_vfs_from_csv(path):
+    """Загружает VFS из CSV-файла в память."""
+    vfs = {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                p = row["path"].strip()
+                t = row["type"].strip()
+                content = row.get("content", "")
+
+                if t == "file" and content:
+                    try:
+                        content = base64.b64decode(content).decode("utf-8")
+                    except Exception:
+                        pass
+
+                vfs[p] = {"type": t, "content": content}
+
+        return vfs
+
+    except FileNotFoundError:
+        print(f"Ошибка: файл VFS не найден: {path}")
+        return None
+    except Exception as e:
+        print(f"Ошибка: неверный формат VFS: {e}")
+        return None
+
+
+def create_default_vfs():
+    """Создаёт минимальную VFS в памяти."""
+    return {
+        "/": {"type": "dir", "content": ""},
+        "/home": {"type": "dir", "content": ""},
+        "/home/user": {"type": "dir", "content": ""},
+        "/home/user/readme.txt": {
+            "type": "file",
+            "content": "Это файл по умолчанию"
+        },
+    }
+    
 
 def execute_script(script_path):
     """Выполняет стартовый скрипт. Останавливается при первой ошибке."""
@@ -132,6 +179,20 @@ def main():
     print("\tОтладочный вывод параметров")
     print(f"VFS path    : {args.vfs}")
     print(f"Script path : {args.script}")
+
+    global vfs
+
+    if args.vfs:
+        print(f"Загрузка VFS из файла: {args.vfs}")
+        vfs = load_vfs_from_csv(args.vfs)
+        if vfs is None:
+            print("Не удалось загрузить VFS. Завершение работы.")
+            return
+    else:
+        print("Путь к VFS не указан. Создаётся VFS по умолчанию.")
+        vfs = create_default_vfs()
+
+    print(f"VFS успешно загружена. Объектов: {len(vfs)}")
 
     global root, output, command_entry
 
