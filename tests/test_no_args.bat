@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0.."
 echo Тест без параметров
-python src/main.py
+py src/main.py
 pause

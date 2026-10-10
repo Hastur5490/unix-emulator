@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0.."
 echo Тест с --vfs и --script
-python src/main.py --vfs C:\temp\vfs --script test_script.txt
+py src/main.py --vfs C:\temp\vfs --script test_script.txt
 pause
