@@ -2,32 +2,77 @@ import tkinter as tk
 from tkinter import scrolledtext
 import getpass
 import os
+import argparse
+import socket
 
-root = tk.Tk()
+def execute_script(script_path):
+    """Выполняет стартовый скрипт. Останавливается при первой ошибке."""
+    global output, command_entry, root
 
-username = getpass.getuser()
-root.title(f"Эмулятор пользователя - [{username}]")
-root.geometry("800x800")
-root.configure(bg="#121212")
+    try:
+        with open(script_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        print(f"Ошибка: файл скрипта не найден: {script_path}")
+        return
+    except Exception as e:
+        print(f"Ошибка при чтении скрипта: {e}")
+        return
 
-output = scrolledtext.ScrolledText(root, 
-                                   bg="#1e1e1e", 
-                                   fg= "#FFD700", 
-                                   font=("Consolas", 12), 
-                                   wrap=tk.WORD)
-output.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-output.config(state="disabled")
+    for line in lines:
+        command = line.strip()
 
-command_entry = tk.Entry(root, 
-                         bg="#2d2d2d", 
-                         fg="white", 
-                         insertbackground="white", 
-                         font=("Consolas", 12))
-command_entry.pack(fill=tk.X, padx=5, pady=5)
-command_entry.focus()
+        if not command or command.startswith("#"):
+            continue
+
+        output.config(state="normal")
+        output.insert(tk.END, f"$ {command}\n")
+        output.config(state="disabled")
+
+        expanded = os.path.expandvars(command)
+        parts = expanded.split()
+        cmd = parts[0]
+        args = parts[1:]
+
+        output.config(state="normal")
+
+        if cmd == "ls":
+            output.insert(tk.END, f"Команда: ls\n")
+            output.insert(tk.END, f"Аргументы: {args}\n")
+        elif cmd == "cd":
+            if len(args) > 1:
+                output.insert(tk.END, "Ошибка: слишком много аргументов\n")
+                output.insert(tk.END, "Использование: cd [путь]\n")
+                output.insert(tk.END, "\n")
+                output.see(tk.END)
+                output.config(state="disabled")
+                print(f"Скрипт остановлен из-за ошибки в команде: {command}")
+                return
+            else:
+                output.insert(tk.END, f"Команда: cd\n")
+                output.insert(tk.END, f"Аргументы: {args}\n")
+        elif cmd == "exit":
+            output.insert(tk.END, "Выход из эмулятора...\n")
+            output.see(tk.END)
+            output.config(state="disabled")
+            root.after(400, root.destroy)
+            return
+        else:
+            output.insert(tk.END, f"Ошибка: команда не найдена: {cmd}\n")
+            output.insert(tk.END, "\n")
+            output.see(tk.END)
+            output.config(state="disabled")
+            print(f"Скрипт остановлен из-за ошибки в команде: {command}")
+            return
+
+        output.insert(tk.END, "\n")
+        output.see(tk.END)
+        output.config(state="disabled")
 
 def proccess_command(event=None):
     """Обработка введенной функции пользователем"""
+    global output, command_entry, root
+
     command = command_entry.get().strip()
     command_entry.delete(0, tk.END)
     if not command:
@@ -67,6 +112,62 @@ def proccess_command(event=None):
     output.see(tk.END)
     output.config(state="disabled")
 
-command_entry.bind("<Return>", proccess_command)
+def main():
+    """Точка входа в приложение."""
+    parser = argparse.ArgumentParser(description="UNIX Shell Emulator")
+    parser.add_argument(
+        "--vfs",
+        type=str,
+        default=None,
+        help="Путь к физическому расположению VFS"
+    )
+    parser.add_argument(
+        "--script",
+        type=str,
+        default=None,
+        help="Путь к стартовому скрипту"
+    )
+    args = parser.parse_args()
 
-root.mainloop()
+    print("\tОтладочный вывод параметров")
+    print(f"VFS path    : {args.vfs}")
+    print(f"Script path : {args.script}")
+
+    global root, output, command_entry
+
+    username = getpass.getuser()
+    hostname = socket.gethostname()
+
+    root = tk.Tk()
+    root.title(f"Эмулятор - [{username}@{hostname}]")
+    root.geometry("800x600")
+    root.configure(bg="#121212")
+
+    output = scrolledtext.ScrolledText(
+        root,
+        bg="#1e1e1e",
+        fg="#FFD700",
+        font=("Consolas", 12),
+        wrap=tk.WORD
+    )
+    output.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    output.config(state="disabled")
+
+    command_entry = tk.Entry(
+        root,
+        bg="#2d2d2d",
+        fg="white",
+        insertbackground="white",
+        font=("Consolas", 12)
+    )
+    command_entry.pack(fill=tk.X, padx=5, pady=5)
+    command_entry.focus()
+    command_entry.bind("<Return>", proccess_command)
+
+    if args.script:
+        root.after(100, lambda: execute_script(args.script))
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
