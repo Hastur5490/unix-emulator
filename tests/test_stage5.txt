@@ -1,0 +1,11 @@
+ls
+find /home
+chown student /home/user/docs/file1.txt
+rm /home/user/docs/file1.txt
+find /home
+vfs-load vfs/simple.csv
+ls
+find
+vfs-load vfs/несуществующий.csv
+rm /несуществующий
+exit
