@@ -1,0 +1,15 @@
+# Тест основных команд Этапа 4
+uname
+ls
+cd home
+ls
+cd user
+ls
+find
+find /home
+rev Hello World
+cd /
+ls
+cd несуществующая
+find /несуществующий
+exit
