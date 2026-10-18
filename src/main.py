@@ -6,13 +6,18 @@ import argparse
 import socket
 import csv
 import base64
-from io import StringIO
 
+EXIT_DELAY_MS = 400
+SCRIPT_START_DELAY_MS = 100
+
+root = None
+output = None
+command_entry = None
+vfs = {}
 
 def load_vfs_from_csv(path):
     """Загружает VFS из CSV-файла в память."""
-    vfs = {}
-
+    result = {}
     try:
         with open(path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -20,24 +25,20 @@ def load_vfs_from_csv(path):
                 p = row["path"].strip()
                 t = row["type"].strip()
                 content = row.get("content", "")
-
                 if t == "file" and content:
                     try:
-                        content = base64.b64decode(content).decode("utf-8")
+                        decoded = base64.b64decode(content)
+                        content = decoded.decode("utf-8")
                     except Exception:
                         pass
-
-                vfs[p] = {"type": t, "content": content}
-
-        return vfs
-
+                result[p] = {"type": t, "content": content}
+        return result
     except FileNotFoundError:
         print(f"Ошибка: файл VFS не найден: {path}")
         return None
     except Exception as e:
         print(f"Ошибка: неверный формат VFS: {e}")
         return None
-
 
 def create_default_vfs():
     """Создаёт минимальную VFS в памяти."""
@@ -47,15 +48,41 @@ def create_default_vfs():
         "/home/user": {"type": "dir", "content": ""},
         "/home/user/readme.txt": {
             "type": "file",
-            "content": "Это файл по умолчанию"
+            "content": "Это файл по умолчанию",
         },
     }
-    
+
+def handle_command(cmd, args):
+    """Обрабатывает одну команду. Возвращает True при ошибке."""
+    if cmd == "ls":
+        output.insert(tk.END, "Команда: ls\n")
+        output.insert(tk.END, f"Аргументы: {args}\n")
+        return False
+
+    if cmd == "cd":
+        if len(args) > 1:
+            output.insert(tk.END, "Ошибка: слишком много аргументов\n")
+            output.insert(tk.END, "Использование: cd [путь]\n")
+            return True
+        output.insert(tk.END, "Команда: cd\n")
+        output.insert(tk.END, f"Аргументы: {args}\n")
+        return False
+
+    if cmd == "exit":
+        if args:
+            output.insert(tk.END, "Ошибка: exit не принимает аргументы\n")
+            return True
+        output.insert(tk.END, "Выход из эмулятора...\n")
+        output.see(tk.END)
+        output.config(state="disabled")
+        root.after(EXIT_DELAY_MS, root.destroy)
+        return False
+
+    output.insert(tk.END, f"Ошибка: команда не найдена: {cmd}\n")
+    return True
 
 def execute_script(script_path):
-    """Выполняет стартовый скрипт. Останавливается при первой ошибке."""
-    global output, command_entry, root
-
+    """Выполняет стартовый скрипт. Останавливается при ошибке."""
     try:
         with open(script_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -68,132 +95,42 @@ def execute_script(script_path):
 
     for line in lines:
         command = line.strip()
-
         if not command or command.startswith("#"):
             continue
 
         output.config(state="normal")
         output.insert(tk.END, f"$ {command}\n")
-        output.config(state="disabled")
 
-        expanded = os.path.expandvars(command)
-        parts = expanded.split()
-        cmd = parts[0]
-        args = parts[1:]
-
-        output.config(state="normal")
-
-        if cmd == "ls":
-            output.insert(tk.END, f"Команда: ls\n")
-            output.insert(tk.END, f"Аргументы: {args}\n")
-        elif cmd == "cd":
-            if len(args) > 1:
-                output.insert(tk.END, "Ошибка: слишком много аргументов\n")
-                output.insert(tk.END, "Использование: cd [путь]\n")
-                output.insert(tk.END, "\n")
-                output.see(tk.END)
-                output.config(state="disabled")
-                print(f"Скрипт остановлен из-за ошибки в команде: {command}")
-                return
-            else:
-                output.insert(tk.END, f"Команда: cd\n")
-                output.insert(tk.END, f"Аргументы: {args}\n")
-        elif cmd == "exit":
-            output.insert(tk.END, "Выход из эмулятора...\n")
-            output.see(tk.END)
-            output.config(state="disabled")
-            root.after(400, root.destroy)
-            return
-        else:
-            output.insert(tk.END, f"Ошибка: команда не найдена: {cmd}\n")
-            output.insert(tk.END, "\n")
-            output.see(tk.END)
-            output.config(state="disabled")
-            print(f"Скрипт остановлен из-за ошибки в команде: {command}")
-            return
+        parts = os.path.expandvars(command).split()
+        error = handle_command(parts[0], parts[1:])
 
         output.insert(tk.END, "\n")
         output.see(tk.END)
         output.config(state="disabled")
 
-def proccess_command(event=None):
-    """Обработка введенной функции пользователем"""
-    global output, command_entry, root
+        if error:
+            print(f"Скрипт остановлен: {command}")
+            return
 
+def process_command(event=None):
+    """Обрабатывает команду из поля ввода."""
     command = command_entry.get().strip()
     command_entry.delete(0, tk.END)
     if not command:
         return
 
-    expanded_command = os.path.expandvars(command)
-
-    parts = expanded_command.split()
-    cmd = parts[0]
-    args = parts[1:]
-
     output.config(state="normal")
     output.insert(tk.END, f"$ {command}\n")
 
-    if cmd == "ls":
-        output.insert(tk.END, f"Команда: ls\n")
-        output.insert(tk.END, f"Аргумент: {args}\n")
-    elif cmd == "cd":
-        if len(args) > 1:
-            output.insert(tk.END, "Ошибка: слишком много аргументов\n")
-        else:
-            output.insert(tk.END, f"Команда: cd\n")
-            output.insert(tk.END, f"Аргумент: {args}\n")
-    elif cmd == "exit":
-        if len(args) > 0:
-            output.insert(tk.END, "Ошибка: команда exit не принимает аргументы")
-        else:
-            output.insert(tk.END, "Выход...\n")
-            output.see(tk.END)
-            output.config(state="disabled")
-            root.after(350, root.destroy)
-            return
-    else:
-        output.insert(tk.END, f"Команда не найдена: {cmd}\n")
+    parts = os.path.expandvars(command).split()
+    handle_command(parts[0], parts[1:])
 
     output.insert(tk.END, "\n")
     output.see(tk.END)
     output.config(state="disabled")
 
-def main():
-    """Точка входа в приложение."""
-    parser = argparse.ArgumentParser(description="UNIX Shell Emulator")
-    parser.add_argument(
-        "--vfs",
-        type=str,
-        default=None,
-        help="Путь к физическому расположению VFS"
-    )
-    parser.add_argument(
-        "--script",
-        type=str,
-        default=None,
-        help="Путь к стартовому скрипту"
-    )
-    args = parser.parse_args()
-
-    print("\tОтладочный вывод параметров")
-    print(f"VFS path    : {args.vfs}")
-    print(f"Script path : {args.script}")
-
-    global vfs
-
-    if args.vfs:
-        print(f"Загрузка VFS из файла: {args.vfs}")
-        vfs = load_vfs_from_csv(args.vfs)
-        if vfs is None:
-            print("Не удалось загрузить VFS. Завершение работы.")
-            return
-    else:
-        print("Путь к VFS не указан. Создаётся VFS по умолчанию.")
-        vfs = create_default_vfs()
-
-    print(f"VFS успешно загружена. Объектов: {len(vfs)}")
-
+def create_gui():
+    """Создаёт графический интерфейс."""
     global root, output, command_entry
 
     username = getpass.getuser()
@@ -209,7 +146,7 @@ def main():
         bg="#1e1e1e",
         fg="#FFD700",
         font=("Consolas", 12),
-        wrap=tk.WORD
+        wrap=tk.WORD,
     )
     output.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     output.config(state="disabled")
@@ -219,14 +156,47 @@ def main():
         bg="#2d2d2d",
         fg="white",
         insertbackground="white",
-        font=("Consolas", 12)
+        font=("Consolas", 12),
     )
     command_entry.pack(fill=tk.X, padx=5, pady=5)
     command_entry.focus()
-    command_entry.bind("<Return>", proccess_command)
+    command_entry.bind("<Return>", process_command)
+
+def main():
+    """Точка входа в приложение."""
+    global vfs
+
+    parser = argparse.ArgumentParser(description="UNIX Shell Emulator")
+    parser.add_argument("--vfs", type=str, default=None, help="Путь к VFS")
+    parser.add_argument(
+        "--script", type=str, default=None, help="Путь к скрипту"
+    )
+    args = parser.parse_args()
+
+    print("=== Отладочный вывод параметров ===")
+    print(f"VFS path    : {args.vfs}")
+    print(f"Script path : {args.script}")
+    print("===================================")
+
+    if args.vfs:
+        print(f"Загрузка VFS из файла: {args.vfs}")
+        vfs = load_vfs_from_csv(args.vfs)
+        if vfs is None:
+            print("Не удалось загрузить VFS. Завершение работы.")
+            return
+    else:
+        print("Путь к VFS не указан. Создаётся VFS по умолчанию.")
+        vfs = create_default_vfs()
+
+    print(f"VFS успешно загружена. Объектов: {len(vfs)}")
+
+    create_gui()
 
     if args.script:
-        root.after(100, lambda: execute_script(args.script))
+        root.after(
+            SCRIPT_START_DELAY_MS,
+            lambda: execute_script(args.script),
+        )
 
     root.mainloop()
 
