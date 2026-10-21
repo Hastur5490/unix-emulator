@@ -66,18 +66,30 @@ def normalize_path(path):
         path = path.rstrip("/")
     return path
 
-def cmd_ls(args):
-    """Команда ls: показать содержимое директории."""
-    target = normalize_path(args[0]) if args else current_dir
+def child_name(path, target, prefix):
+    """Имя прямого потомка каталога target или None."""
+    if path == target:
+        return None
+    if not path.startswith(prefix):
+        return None
+    relative = path[len(prefix):].lstrip("/")
+    if not relative or "/" in relative:
+        return None
+    return relative
+
+
+def collect_children(target, prefix):
+    """Список имён прямых потомков каталога target."""
     items = []
-    prefix = "/" if target == "/" else target + "/"
     for path in vfs:
-        if path == target:
-            continue
-        if path.startswith(prefix):
-            relative = path[len(prefix):].lstrip("/")
-            if "/" not in relative and relative:
-                items.append(relative)
+        name = child_name(path, target, prefix)
+        if name is not None:
+            items.append(name)
+    return items
+
+
+def show_ls_result(target, items):
+    """Вывод результата команды ls в окно программы."""
     if not items and target not in vfs:
         msg = f"Ошибка: нет такого файла или каталога: {target}\n"
         output.insert(tk.END, msg)
@@ -85,6 +97,14 @@ def cmd_ls(args):
         output.insert(tk.END, "  ".join(sorted(items)) + "\n")
     else:
         output.insert(tk.END, "\n")
+
+
+def cmd_ls(args):
+    """Команда ls: показать содержимое директории."""
+    target = normalize_path(args[0]) if args else current_dir
+    prefix = "/" if target == "/" else target + "/"
+    items = collect_children(target, prefix)
+    show_ls_result(target, items)
     return False
 
 def cmd_cd(args):
